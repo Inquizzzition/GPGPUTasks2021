@@ -36,21 +36,56 @@ int main() {
     // Пытаемся слинковаться с символами OpenCL API в runtime (через библиотеку clew)
     if (!ocl_init())
         throw std::runtime_error("Can't init OpenCL driver!");
-
     // TODO 1 По аналогии с предыдущим заданием узнайте, какие есть устройства, и выберите из них какое-нибудь
     // (если в списке устройств есть хоть одна видеокарта - выберите ее, если нету - выбирайте процессор)
-
+    cl_uint platformsCount = 0;
+    OCL_SAFE_CALL(clGetPlatformIDs(0, nullptr, &platformsCount));
+    if(platformsCount == 0){
+        std::cout << "No platform found" << std::endl;
+        return(10000000);
+    }
+    cl_platform_id* platforms(static_cast<cl_platform_id*>(malloc(platformsCount*sizeof(cl_platform_id))));
+    OCL_SAFE_CALL(clGetPlatformIDs(platformsCount, platforms, nullptr));
+    cl_platform_id platform = platforms[0];
+    size_t platformNameSize = 0;
+    OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, 0, nullptr, &platformNameSize));
+    char* platformName(static_cast<char*>(malloc(platformNameSize*sizeof(char))));
+    OCL_SAFE_CALL(clGetPlatformInfo(platform, CL_PLATFORM_NAME, platformNameSize, platformName, nullptr));
+    std::cout << "platform selected name: " << platformName << std::endl;
+    cl_uint devicesCount = 0;
+    OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, nullptr, &devicesCount));
+    if(devicesCount == 0){
+        std::cout << "No device found" << std::endl;
+        return(10000001);
+    }
+    cl_device_id* devices(static_cast<cl_device_id*>(malloc(devicesCount * sizeof(cl_device_id))));
+    OCL_SAFE_CALL(clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, devicesCount, devices, nullptr));
+    cl_device_id  device = devices[0];
+    size_t deviceNameSize = 0;
+    OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &deviceNameSize));
+    char* deviceName(static_cast<char*>(malloc(deviceNameSize*sizeof(char))));
+    OCL_SAFE_CALL(clGetDeviceInfo(device, CL_DEVICE_NAME, deviceNameSize, deviceName, nullptr));
+    std::cout << "device selected name: " << deviceName << std::endl;
     // TODO 2 Создайте контекст с выбранным устройством
     // См. документацию https://www.khronos.org/registry/OpenCL/sdk/1.2/docs/man/xhtml/ -> OpenCL Runtime -> Contexts -> clCreateContext
     // Не забывайте проверять все возвращаемые коды на успешность (обратите внимание, что в данном случае метод возвращает
     // код по переданному аргументом errcode_ret указателю)
     // И хорошо бы сразу добавить в конце clReleaseContext (да, не очень RAII, но это лишь пример)
+    cl_int errcode;
+    cl_context context = clCreateContext(NULL, 1, devices, NULL, NULL, &errcode);
+    if(errcode != 0){
+        std::cout << errcode;
+        exit(10000002);
+    }
+    else
+        std::cout << "context creation success" << std::endl;
 
     // TODO 3 Создайте очередь выполняемых команд в рамках выбранного контекста и устройства
     // См. документацию https://www.khronos.org/registry/OpenCL/sdk/1.2/docs/man/xhtml/ -> OpenCL Runtime -> Runtime APIs -> Command Queues -> clCreateCommandQueue
     // Убедитесь, что в соответствии с документацией вы создали in-order очередь задач
     // И хорошо бы сразу добавить в конце clReleaseQueue (не забывайте освобождать ресурсы)
 
+    cl_command_queue commandQueue = clCreateCommandQueue(context, device, NULL , &errcode);
     unsigned int n = 1000 * 1000;
     // Создаем два массива псевдослучайных данных для сложения и массив для будущего хранения результата
     std::vector<float> as(n, 0);
@@ -169,6 +204,8 @@ int main() {
     //            throw std::runtime_error("CPU and GPU results differ!");
     //        }
     //    }
+
+    OCL_SAFE_CALL(clReleaseCommandQueue(commandQueue));
 
     return 0;
 }
